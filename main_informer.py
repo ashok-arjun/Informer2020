@@ -42,7 +42,7 @@ parser.add_argument('--do_predict', action='store_true', help='whether to predic
 parser.add_argument('--mix', action='store_false', help='use mix attention in generative decoder', default=True)
 parser.add_argument('--cols', type=str, nargs='+', help='certain cols from the data files as the input features')
 parser.add_argument('--num_workers', type=int, default=0, help='data loader num workers')
-parser.add_argument('--itr', type=int, default=2, help='experiments times')
+parser.add_argument('--itr', type=int, default=1, help='experiments times')
 parser.add_argument('--train_epochs', type=int, default=6, help='train epochs')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
 parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
@@ -76,6 +76,7 @@ data_parser = {
     'WTH':{'data':'WTH.csv','T':'WetBulbCelsius','M':[12,12,12],'S':[1,1,1],'MS':[12,12,1]},
     'ECL':{'data':'ECL.csv','T':'MT_320','M':[321,321,321],'S':[1,1,1],'MS':[321,321,1]},
     'Solar':{'data':'solar_AL.csv','T':'POWER_136','M':[137,137,137],'S':[1,1,1],'MS':[137,137,1]},
+    'Windspeed':{'data':'bahia_windspeed.csv','T':'windspeed','M':[9,9,9],'S':[1,1,1],'MS':[9,9,1]},
 }
 if args.data in data_parser.keys():
     data_info = data_parser[args.data]
@@ -83,7 +84,7 @@ if args.data in data_parser.keys():
     args.target = data_info['T']
     args.enc_in, args.dec_in, args.c_out = data_info[args.features]
 
-args.s_layers = [int(s_l) for s_l in args.s_layers.replace(' ','').split(',')]
+args.s_layers = [int(s_l) for s_l in args.s_layers.replace(' ','').split(',')] # Used only in informerstack
 args.detail_freq = args.freq
 args.freq = args.freq[-1:]
 

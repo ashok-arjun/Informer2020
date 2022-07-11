@@ -66,19 +66,19 @@ class Informer(nn.Module):
         
     def forward(self, x_enc, x_mark_enc, x_dec, x_mark_dec, 
                 enc_self_mask=None, dec_self_mask=None, dec_enc_mask=None):
-        enc_out = self.enc_embedding(x_enc, x_mark_enc)
-        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask)
+        enc_out = self.enc_embedding(x_enc, x_mark_enc) # (BS, seq_len, d_model)
+        enc_out, attns = self.encoder(enc_out, attn_mask=enc_self_mask) # (BS, 42, d_model)
 
-        dec_out = self.dec_embedding(x_dec, x_mark_dec)
-        dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask)
-        dec_out = self.projection(dec_out)
+        dec_out = self.dec_embedding(x_dec, x_mark_dec) # (BS, label_len+pred_len, d_model) # pred_len is full of zeros
+        dec_out = self.decoder(dec_out, enc_out, x_mask=dec_self_mask, cross_mask=dec_enc_mask) # (BS, label_len+pred_len, d_model)
+        dec_out = self.projection(dec_out) # (BS, label_len+pred_len, out_dim)
         
         # dec_out = self.end_conv1(dec_out)
         # dec_out = self.end_conv2(dec_out.transpose(2,1)).transpose(1,2)
         if self.output_attention:
             return dec_out[:,-self.pred_len:,:], attns
         else:
-            return dec_out[:,-self.pred_len:,:] # [B, L, D]
+            return dec_out[:,-self.pred_len:,:] # [B, L, D] # (BS, pred_len, out_dim)
 
 
 class InformerStack(nn.Module):
