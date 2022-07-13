@@ -69,6 +69,7 @@ class Exp_Informer(Exp_Basic):
             'ECL':Dataset_Custom,
             'Solar':Dataset_Custom,
             'custom':Dataset_Custom,
+            'Windspeed':Dataset_Custom
         }
         Data = data_dict[self.args.data]
         timeenc = 0 if args.embed!='timeF' else 1
@@ -154,6 +155,8 @@ class Exp_Informer(Exp_Basic):
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
                     train_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
+                # print(pred, pred.shape)
+                # print(true, true.shape)
                 loss = criterion(pred, true)
                 train_loss.append(loss.item())
                 

@@ -246,6 +246,10 @@ class Dataset_Custom(Dataset):
 
         print("Columns in df_data:", df_data.columns)
 
+        df_data_nan = df_data.isnull().any(axis=1).sum()
+        if df_data_nan:
+            raise Exception("Data has {} NAN rows out of {} rows".format(df_data_nan, len(df_data)))
+
         if self.scale:
             train_data = df_data[border1s[0]:border2s[0]]
             self.scaler.fit(train_data.values)
@@ -263,7 +267,7 @@ class Dataset_Custom(Dataset):
         else:
             self.data_y = data[border1:border2]
         self.data_stamp = data_stamp
-    
+
     def __getitem__(self, index):
         s_begin = index
         s_end = s_begin + self.seq_len
