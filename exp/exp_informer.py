@@ -11,9 +11,11 @@ import torch
 import torch.nn as nn
 from torch import optim
 from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import os
 import time
+import wandb
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -143,7 +145,21 @@ class Exp_Informer(Exp_Basic):
         if self.args.use_amp:
             scaler = torch.cuda.amp.GradScaler()
 
+        if self.args.step_lrs:
+            lrs = ReduceLROnPlateau(model_optim, mode='min', \
+                                    factor=self.args.step_lrs_alpha, \
+                                    patience=self.args.step_lrs_patience)
+
+        wandb.log({"train/total_iters": len(train_loader)})
         for epoch in range(self.args.train_epochs):
+            lr = model_optim.param_groups[0]['lr']
+            print("Starting epoch %d with LR as %.2E" % (epoch, lr))
+            wandb.log({'train/epoch': epoch, 'train/lr': lr})
+
+            if self.args.step_lrs and lr <= self.args.step_lrs_cutoff:
+                print("Stopping as LR beyond cutoff")
+                break
+
             iter_count = 0
             train_loss = []
             
@@ -151,7 +167,8 @@ class Exp_Informer(Exp_Basic):
             epoch_time = time.time()
             for i, (batch_x,batch_y,batch_x_mark,batch_y_mark) in enumerate(train_loader):
                 iter_count += 1
-                
+                wandb.log({'train/iter': i})
+
                 model_optim.zero_grad()
                 pred, true = self._process_one_batch(
                     train_data, batch_x, batch_y, batch_x_mark, batch_y_mark)
@@ -159,14 +176,8 @@ class Exp_Informer(Exp_Basic):
                 # print(true, true.shape)
                 loss = criterion(pred, true)
                 train_loss.append(loss.item())
-                
-                if (i+1) % 100==0:
-                    print("\titers: {0}, epoch: {1} | loss: {2:.7f}".format(i + 1, epoch + 1, loss.item()))
-                    speed = (time.time()-time_now)/iter_count
-                    left_time = speed*((self.args.train_epochs - epoch)*train_steps - i)
-                    print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
-                    iter_count = 0
-                    time_now = time.time()
+
+                wandb.log({"train/loss": loss.item()})
                 
                 if self.args.use_amp:
                     scaler.scale(loss).backward()
@@ -176,10 +187,24 @@ class Exp_Informer(Exp_Basic):
                     loss.backward()
                     model_optim.step()
 
+                if (i+1) % 100==0:
+                    print("\titers: {0}/{1}, epoch: {2} | loss: {3:.7f}".format(i + 1, len(train_loader), epoch + 1, loss.item()))
+                    speed = (time.time()-time_now)/iter_count
+                    left_time = speed*((self.args.train_epochs - epoch)*train_steps - i)
+                    print('\tspeed: {:.4f}s/iter; left time: {:.4f}s'.format(speed, left_time))
+                    wandb.log({"train/iter_time": speed, \
+                            "train/time_left_sec": left_time, \
+                            "train/time_left_min": left_time/60})
+                    iter_count = 0
+                    time_now = time.time()
+
             print("Epoch: {} cost time: {}".format(epoch+1, time.time()-epoch_time))
+            wandb.log({"train/epoch_time": time.time()-epoch_time})
             train_loss = np.average(train_loss)
             vali_loss = self.vali(vali_data, vali_loader, criterion)
             test_loss = self.vali(test_data, test_loader, criterion)
+
+            wandb.log({"valid/loss": vali_loss.item(), "test/loss": test_loss.item()})
 
             print("Epoch: {0}, Steps: {1} | Train Loss: {2:.7f} Vali Loss: {3:.7f} Test Loss: {4:.7f}".format(
                 epoch + 1, train_steps, train_loss, vali_loss, test_loss))
@@ -187,8 +212,11 @@ class Exp_Informer(Exp_Basic):
             if early_stopping.early_stop:
                 print("Early stopping")
                 break
-
-            adjust_learning_rate(model_optim, epoch+1, self.args)
+            
+            if self.args.step_lrs:
+                lrs.step(vali_loss)
+            else:
+                adjust_learning_rate(model_optim, epoch+1, self.args)
             
         best_model_path = path+'/'+'checkpoint.pth'
         self.model.load_state_dict(torch.load(best_model_path))
@@ -223,6 +251,8 @@ class Exp_Informer(Exp_Basic):
 
         mae, mse, rmse, mape, mspe = metric(preds, trues)
         print('mse:{}, mae:{}'.format(mse, mae))
+
+        wandb.log({"test/mse": mse, "test/mae": mae})
 
         np.save(folder_path+'metrics.npy', np.array([mae, mse, rmse, mape, mspe]))
         np.save(folder_path+'pred.npy', preds)

@@ -1,6 +1,7 @@
 import argparse
 import os
 import torch
+import wandb
 
 from exp.exp_informer import Exp_Informer
 
@@ -45,7 +46,7 @@ parser.add_argument('--num_workers', type=int, default=0, help='data loader num 
 parser.add_argument('--itr', type=int, default=1, help='experiments times')
 parser.add_argument('--train_epochs', type=int, default=6, help='train epochs')
 parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
-parser.add_argument('--patience', type=int, default=3, help='early stopping patience')
+parser.add_argument('--patience', type=int, default=15, help='early stopping patience')
 parser.add_argument('--learning_rate', type=float, default=0.0001, help='optimizer learning rate')
 parser.add_argument('--des', type=str, default='test',help='exp description')
 parser.add_argument('--loss', type=str, default='mse',help='loss function')
@@ -57,6 +58,13 @@ parser.add_argument('--use_gpu', type=bool, default=True, help='use gpu')
 parser.add_argument('--gpu', type=int, default=0, help='gpu')
 parser.add_argument('--use_multi_gpu', action='store_true', help='use multiple gpus', default=False)
 parser.add_argument('--devices', type=str, default='0,1,2,3',help='device ids of multile gpus')
+
+# Custom
+parser.add_argument('--wandb_run_name', type=str, help='device ids of multile gpus')
+parser.add_argument('--step_lrs', action='store_true', help='device ids of multile gpus')
+parser.add_argument('--step_lrs_patience', type=int, default=5, help='device ids of multile gpus')
+parser.add_argument('--step_lrs_alpha', type=float, default=0.1, help='device ids of multile gpus')
+parser.add_argument('--step_lrs_cutoff', type=float, default=1e-9, help='device ids of multile gpus')
 
 args = parser.parse_args()
 
@@ -88,27 +96,28 @@ args.s_layers = [int(s_l) for s_l in args.s_layers.replace(' ','').split(',')] #
 args.detail_freq = args.freq
 args.freq = args.freq[-1:]
 
+wandb.init(entity="arjunashok", project="informer", config=vars(args), name=args.wandb_run_name)
+
 print('Args in experiment:')
 print(args)
 
 Exp = Exp_Informer
 
-for ii in range(args.itr):
-    # setting record of experiments
-    setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}_{}'.format(args.model, args.data, args.features, 
-                args.seq_len, args.label_len, args.pred_len,
-                args.d_model, args.n_heads, args.e_layers, args.d_layers, args.d_ff, args.attn, args.factor, 
-                args.embed, args.distil, args.mix, args.des, ii)
+# setting record of experiments
+setting = '{}_{}_ft{}_sl{}_ll{}_pl{}_dm{}_nh{}_el{}_dl{}_df{}_at{}_fc{}_eb{}_dt{}_mx{}_{}'.format(args.model, args.data, args.features, 
+            args.seq_len, args.label_len, args.pred_len,
+            args.d_model, args.n_heads, args.e_layers, args.d_layers, args.d_ff, args.attn, args.factor, 
+            args.embed, args.distil, args.mix, args.des)
 
-    exp = Exp(args) # set experiments
-    print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
-    exp.train(setting)
-    
-    print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-    exp.test(setting)
+exp = Exp(args) # set experiments
+print('>>>>>>>start training : {}>>>>>>>>>>>>>>>>>>>>>>>>>>'.format(setting))
+exp.train(setting)
 
-    if args.do_predict:
-        print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-        exp.predict(setting, True)
+print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+exp.test(setting)
 
-    torch.cuda.empty_cache()
+if args.do_predict:
+    print('>>>>>>>predicting : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
+    exp.predict(setting, True)
+
+torch.cuda.empty_cache()

@@ -162,3 +162,5 @@ cython_debug/
 *.npy
 *.csv
 *.pth
+wandb
+scripts
